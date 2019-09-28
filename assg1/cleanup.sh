@@ -38,8 +38,6 @@ then
                 done
                 echo Files renamed 'in' $directory/st$col2: $numtextFiles 
                 totaltxtFiles=$((totaltxtFiles + numtextFiles))
-
-
             else
                 echo ERROR: $col3\'s directory was not found
             fi
@@ -51,7 +49,6 @@ then
     echo TOTAL FILES RENAMED: $totaltxtFiles
 else
     echo ERROR: "2 arguments not provided"
-
 fi
 
 
