@@ -6,7 +6,7 @@ game_run=true
 
 while [ "$game_run" == true ]
 do
-    read -p "Enter your move" x y
+    read -p "Enter your move (space seperated integers for x and y)" x y
     if [ $x -ge 3 ] || [ $y -ge 3 ]
     then
         echo INVALID MOVE
