@@ -4,7 +4,7 @@ arr=("0" "0" "0" "0" "0" "0" "0" "0" "0")
 
 game_run=true
 
-while [ "$game_run" ]
+while [ "$game_run" == true ]
 do
     read -p "Enter your move" x y
     if [ $x -ge 3 ] || [ $y -ge 3 ]
@@ -39,7 +39,44 @@ do
         arr[$move_num]="-1"
     else
         echo POSITION OCCUPIED
+        continue
     fi
+
+    for i in 0 3 6
+    do
+        start_pos=${arr[$i]}
+        pos_1=${arr[$((i+1))]}
+        pos_2=${arr[$((i+2))]}
+        echo $start_pos
+        echo $pos_1
+        echo $pos_2
+        sleep 0.1
+        if [ "$start_pos" -ne "0" ] && [ "$pos_1" == "$start_pos" ] && [ "$pos_2" == "$start_pos" ]
+        then
+            echo GAME END
+            game_run=false
+            break
+            sleep 2
+        else
+            echo game not end
+        fi
+
+    done
+
+    for i in 0 1 2
+    do
+        start_pos=${arr[$i]}
+        if [ "$start_pos" -ne "0" ] && [ "${arr[$((i+3))]}" == "$start_pos" ] && [ "${arr[$((i+6))]}" == "$start_pos" ]
+        then
+            echo GAME END
+            game_run=false
+            break
+        else
+            echo game not end
+        fi
+
+    done
+
 
     free_moves=()
 
@@ -60,13 +97,38 @@ do
         break
     fi
 
-    
-
     selectedmove=${free_moves[$RANDOM % ${#free_moves[@]}]}
     arr[$selectedmove]="1"
 
+    cols=$( tput cols )
+    rows=$( tput lines )
+    input_length=6
+    half_input_length=$(( $input_length / 2 ))
+    middle_row=$(( ($rows / 2) - 1 ))
+    middle_col=$(( (($cols / 2) - $half_input_length)-1 ))
 
+    tput clear
+    tput bold
 
+    tput cup $middle_row $middle_col
+
+    echo ${arr[0]} ${arr[1]} ${arr[2]}
+
+    middle_row=$(( ($rows / 2) ))
+    middle_col=$(( (($cols / 2) - $half_input_length) - 1 ))
+
+    tput cup $middle_row $middle_col
+
+    echo ${arr[3]} ${arr[4]} ${arr[5]}
+
+    middle_row=$(( ($rows / 2) +1 ))
+    middle_col=$(( (($cols / 2) - $half_input_length) -1 ))
+
+    tput cup $middle_row $middle_col
+
+    echo ${arr[6]} ${arr[7]} ${arr[8]}
+    tput bold
+    
 done
 
 
