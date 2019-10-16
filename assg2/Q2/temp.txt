@@ -1,0 +1,5 @@
+  PID TTY          TIME CMD
+ 3687 pts/0    00:00:00 bash
+ 5240 pts/0    00:00:00 make
+ 5246 pts/0    00:00:00 hush
+ 5247 pts/0    00:00:00 ps

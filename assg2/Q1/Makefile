@@ -1,0 +1,6 @@
+all:
+	gcc -o mycat mycat.c -std=c99
+	./mycat a b c
+
+
+
