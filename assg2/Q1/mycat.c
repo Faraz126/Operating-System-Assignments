@@ -1,105 +1,70 @@
+#define _GNU_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <fcntl.h>  
 
-//getline use kar
-
-
-
+void read_file(char ** ptr_to_ptr, FILE* fd, int* n)
+{
+    /*
+    ptr_to_ptr: pointer to a character pointer, passing it as double pointer because getline might need to change the pointer.
+    fd: file desriptor of the file to read from
+    n: pointer to the the integer denoting the current count of line. Is -1 if we dont have to show the line nubmers.
+    */
+    size_t size = 1024;
+    while(getline(ptr_to_ptr, &size, fd) != -1)
+    {
+        if ((*n) == -1)
+        {
+            printf("%s", *ptr_to_ptr);
+        }
+        else
+        {
+            printf("%*d  %s", 6, (*n)++, *ptr_to_ptr);
+        }
+    }
+}
 
 
 int main(int argc, char * argv[])
 {
     char * option = "-n";
-
     int nofiles = argc - 1 ;
-    int start = 1;
-    int showN = 0;
+    int start = 1; //starting position of filenames
+    int counter = -1;
     if (argc > 1 && strcmp(argv[1], option) == 0)
     {
         nofiles = argc - 2;
         start++;
-        showN = 1;
+        counter = 0; //setting it to 0 to mark that -n has been found
     }
 
-
-    if (nofiles <= 0)
-    {
-        
-        //printf("No file to open");
-    }
-
-    int i;
-    int counter = 1;
-    char * newline = "\n";
-    size_t bytes = 1;
-    char c[1];
     char * ptr = (char*) malloc(2000);
-    size_t size = 2000;
     
-
-    if (!isatty(0))
+    if (!isatty(0)) //checking if pipe is attached
     {
-        nofiles = 1;
-        while (getline(&ptr, &size, stdin) != -1)
-        {
-            printf("%s", ptr);
-        }
-        /*
-        while (read(0, c, bytes))
-            {
-
-                if (counter == 1 && showN == 1)
-                {
-                    printf("%*d  ", 6, counter++);
-                }
-
-                printf("%s", c);
-                if (strcmp(c, newline) == 0 && showN == 1)
-                {
-                    
-                    printf("%*d  ", 6, counter++);
-                }
-            }
-        */
+        read_file(&ptr, stdin, &counter);
     }
-
-    else
+    else if (nofiles > 0)//iterating over the given files
     {
-        printf("here2");
-        for (i = start; i < argc; i++)
+        for (int i = start; i < argc; i++)
         {
-            int file = open(argv[i], O_RDONLY);
-            
-            
-            if (file < 0)
+            FILE * file = fopen(argv[i], "r");         
+            if (file == NULL)
             {
                 printf("Couldnt open the file\n");
             }
             else
             {
-                
-                while (read(file, c, bytes))
-                {
-                    if (counter == 1 && showN == 1)
-                    {
-                        printf("%*d  ", 6, counter++);
-                    }
-
-                    printf("%s", c);
-                    if (strcmp(c, newline) == 0 && showN == 1)
-                    {
-                        
-                        printf("%*d  ", 6, counter++);
-                    }
-                }
+                read_file(&ptr, file, &counter);
             }
         }
     }
+    else
+    {
+        printf("No file to open");
+    }
+    free(ptr);
     return 0;
 
 
