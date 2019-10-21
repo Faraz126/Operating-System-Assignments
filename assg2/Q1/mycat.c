@@ -12,8 +12,15 @@ void read_file(char ** ptr_to_ptr, FILE* fd, int* n)
     n: pointer to the the integer denoting the current count of line. Is -1 if we dont have to show the line nubmers.
     */
     size_t size = 1024;
+    int line_num = 0;
+
     while(getline(ptr_to_ptr, &size, fd) != -1)
     {
+        if (line_num == 0 && (*n) != 1)
+        {
+            printf("%d  %s", (*n)++, *ptr_to_ptr);
+        }
+
         if ((*n) == -1)
         {
             printf("%s", *ptr_to_ptr);
@@ -22,6 +29,7 @@ void read_file(char ** ptr_to_ptr, FILE* fd, int* n)
         {
             printf("%*d  %s", 6, (*n)++, *ptr_to_ptr);
         }
+        line_num++;
     }
 }
 
@@ -32,11 +40,21 @@ int main(int argc, char * argv[])
     int nofiles = argc - 1 ;
     int start = 1; //starting position of filenames
     int counter = -1;
+
+
+    for (int i = 1; i < argc; i++)
+    {
+        if (strcmp(argv[i], option) == 0)
+        {
+            counter = 1;
+        }
+    }
+
     if (argc > 1 && strcmp(argv[1], option) == 0)
     {
         nofiles = argc - 2;
         start++;
-        counter = 0; //setting it to 0 to mark that -n has been found
+        counter = 1; //setting it to 0 to mark that -n has been found
     }
 
     char * ptr = (char*) malloc(2000);
@@ -47,12 +65,18 @@ int main(int argc, char * argv[])
     }
     else if (nofiles > 0)//iterating over the given files
     {
-        for (int i = start; i < argc; i++)
+        for (int i = 1; i < argc; i++)
         {
+
+            if (strcmp(argv[i], option) == 0)
+            {
+                continue;
+            }
+
             FILE * file = fopen(argv[i], "r");         
             if (file == NULL)
             {
-                printf("Couldnt open the file\n");
+                printf("%s: Couldnt open the file\n", argv[i]);
             }
             else
             {
