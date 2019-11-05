@@ -16,11 +16,6 @@ void read_file(char ** ptr_to_ptr, FILE* fd, int* n)
 
     while(getline(ptr_to_ptr, &size, fd) != -1)
     {
-        if (line_num == 0 && (*n) != 1)
-        {
-            printf("%d  %s", (*n)++, *ptr_to_ptr);
-        }
-
         if ((*n) == -1)
         {
             printf("%s", *ptr_to_ptr);
