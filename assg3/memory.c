@@ -24,12 +24,17 @@ typedef struct __allocated
 } __attribute__((packed)) node;
 
 
-node_t mystr;
-node_t * head = &mystr;
+
+node_t * head = NULL;
 
 int my_init()
 {
     head = mmap(NULL, TOTAL_SIZE, PROT_READ|PROT_WRITE,MAP_ANON|MAP_PRIVATE, -1, 0);
+    if (head == MAP_FAILED)
+    {
+        head = NULL;
+        return;
+    }
     head-> size  = TOTAL_SIZE - sizeof(node_t);
     head-> next = NULL;
     return 1;
@@ -51,6 +56,10 @@ void * allocate_on_block(node_t** current, int size)
 
 void * my_malloc(int size)
 {
+    if (head == NULL)
+    {
+        return NULL;
+    }
     size = size + sizeof(node);
     //printf("%d\n", (int) ceil((double)size/(double)sizeof(node_t)));
     node * ptr = NULL;
@@ -117,13 +126,21 @@ void my_free(void * ptr)
     /*
     basically moving the of free list to where we are deleting the node.
     */
+    if (ptr == NULL)
+    {
+        return;
+    } 
     node* temp = ptr;
     node_t * temp2 = temp - 1;
-    temp2->size = temp2->size + sizeof(node) - sizeof(node_t);
-    //temp2->size = ; //- (sizeof(node_t) - sizeof(node)); //since node_t is greater in size.
-    temp2->next = head; //putting the head at next.
-    head = temp2;
-    //my_coalesce();
+    if (temp->magic == MAGIC)
+    {
+        temp2->size = temp2->size + sizeof(node) - sizeof(node_t);
+        //temp2->size = ; //- (sizeof(node_t) - sizeof(node)); //since node_t is greater in size.
+        temp2->next = head; //putting the head at next.
+        head = temp2;
+        my_coalesce();
+    }
+    
 
 }
 
@@ -131,6 +148,10 @@ void * my_calloc(int num, int size)
 {
     int total_size = num * size;
     char * my_memory = my_malloc(total_size);
+    if (my_memory == NULL)
+    {
+        return NULL;
+    }
     for (int i = 0; i < total_size; i++)
     {
         my_memory[i] = 0;
@@ -178,14 +199,27 @@ void my_coalesce()
             /*
             for the case when any node moved down, becomes equal to head so that we can merge them together. While merging, we move the head pointer to the upper node
             */
-            temp->next->size = temp->next->size + head->size + sizeof(node_t); //adding size note_t since one node is vanishing.
-            temp->next->next = head->next;
-            head = temp->next;
+            
+            node_t * to_be_moved = temp->next;
             temp->next = temp->next->next; //since the node at temp->next will become head.
+            to_be_moved->size = to_be_moved->size + head->size + sizeof(node_t); //adding size note_t since one node is vanishing.
+            to_be_moved->next = head->next;
+            head = to_be_moved;
+            temp = head;            
+        }
+        else if (head_moved_down == temp->next)
+        {
+            node_t * to_be_moved = temp->next;
+            temp->next = temp->next->next; //since the node at temp->next will become head.
+            head->size = to_be_moved->size + head->size + sizeof(node_t); //adding size note_t since one node is vanishing.
+            temp = head; 
+        }
+        else
+        {
+            temp = temp->next;
         }
         //printf("%p\n", temp);
-        temp = temp->next;
-
+        
     }
 
 }
@@ -200,16 +234,15 @@ void * my_realloc(void * ptr, int size)
     else if (ptr != NULL && size == 0)
     {
         my_free(ptr);
-        return NULL;
     }
     else
     {
         node* temp = ptr;
         temp--;
-        int cur_size = temp->size;
         if (temp->magic == MAGIC)
         {
-            int new_size = cur_size;
+            int cur_size = temp->size;
+            int new_size = size;
             void * new_ptr = my_malloc(new_size);
             int min_size = min(new_size, cur_size);
             int copied_size = copy(ptr, new_ptr, min_size);
@@ -217,10 +250,11 @@ void * my_realloc(void * ptr, int size)
             {
                 return NULL;
             }
-            free(ptr);
+            my_free(ptr);
             return new_ptr;
         }
     }
+    return NULL;
 }
 
 void my_showfreelist()
@@ -251,8 +285,8 @@ int main(int argc, char *argv[])
     printf("%d\n", head->size);
     printf("%d\n", sizeof(node_t));
     printf("%d\n", sizeof(node));
-    printf("%d\n%d\n",sizeof(int), sizeof(node_t*));
-    void * ptr = my_malloc(100);
+    //printf("%d\n%d\n",sizeof(int), sizeof(node_t*));
+    void * ptr = my_malloc(1000);
     node * myptr = ptr;
     printf("%d\n", myptr->size);
     printf("%" PRIuPTR "\n", (uintptr_t)ptr);
@@ -280,9 +314,14 @@ int main(int argc, char *argv[])
     my_free(ptr2);
     printf("Showing FREELIST \n");
     my_showfreelist();
-    /* ptr2 = my_calloc(4, 18);
+    ptr2 = my_calloc(4, 18);
+    printf("Showing FREELIST \n");
+    my_showfreelist();
     myptr = ptr2;
-    printf("%d\n", myptr->size);
     printf("%" PRIuPTR "\n", (uintptr_t)ptr2);
-    printf("%" PRIuPTR "\n", (uintptr_t)head); */
+    printf("%" PRIuPTR "\n", (uintptr_t)head); 
+    ptr2 = my_realloc(ptr2, 500);
+    printf("Showing FREELIST \n");
+    my_showfreelist();
+
 }   
