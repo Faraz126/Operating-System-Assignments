@@ -2,14 +2,19 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <assert.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <netdb.h>
-
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/select.h>
 #include <pthread.h>
-
-
+#include <semaphore.h>
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <netdb.h>
+#include <assert.h>
 #define BUF_SIZE 4096
 
 
@@ -52,7 +57,6 @@ int main(int argc, char * argv[]){
     int sock;                      //socket file descriptor
 
     
-    
 
     char * request= argv[3]; //the GET request
 
@@ -93,11 +97,14 @@ int main(int argc, char * argv[]){
     while (1)
     {
         readfds = activefds;
+
+        memset(response, 0, BUF_SIZE);
         for(i=0; i < FD_SETSIZE; i++)
         {
             //printf("%d\n", i);
             if(FD_ISSET(i, &readfds) && i == sock)
             {
+                response[0] = '\n';
                 n = read(sock, response, BUF_SIZE-1);   
 
                 if(n <= 0)
@@ -112,7 +119,7 @@ int main(int argc, char * argv[]){
                 else
                 { //client sent a message
 
-                    response[n] = '\0';
+
                     printf("Recieved from server: %s", response);
                 }
             }
