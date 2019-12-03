@@ -94,16 +94,24 @@ void add(Node * new)
 
 int removeFD(int FD)
 {
+    /*
+    removes client having socket = FD
+    */
     rwlock_acquire_writelock(&mutex);
     Node * temp = head;
-    if (temp == NULL)
+    if (temp == NULL) 
     {
         return 0;
     }
     if (head -> FD == FD)
     {
         head = head->next;
-        //free(temp);
+        if (temp->name != NULL)
+        {
+            free(temp->name);
+        }
+        free(temp);
+        rwlock_release_writelock(&mutex);
         return FD;
     }
 
@@ -122,13 +130,16 @@ int removeFD(int FD)
             free(temp2->name);
         }
         free(temp2);
-        rwlock_release_writelock(&mutex);       return FD;
+        rwlock_release_writelock(&mutex);
+        return FD;
     }
     rwlock_release_writelock(&mutex);
     return 0;
 }
 void write_to_client(char * msg,int client)
 {   
+    /* send msg to client having socket = client
+    */
     if (write(client, msg,strlen(msg)) < 0)
     {
         perror("send");
@@ -139,6 +150,9 @@ void write_to_client(char * msg,int client)
 void list_connections(int client)
 {
 
+    /*
+    lists all the connections and send it back to the user
+    */
     printf("request to print");
     char buffer[BUF_SIZE];
     memset(buffer, 0, BUF_SIZE);
@@ -160,8 +174,10 @@ void list_connections(int client)
 
 void send_msg(int sender, char * recv, char * message)
 {
+    /* sends  messeage from client having socket ID sender to a client having name recv
+    */
     int recievr = 0;
-    printf("sending to %s\n", recv);
+    printf("sending message to %s\n", recv);
     char buffer[BUF_SIZE];
     memset(buffer, 0, BUF_SIZE);
     rwlock_acquire_readlock(&mutex);
@@ -176,28 +192,30 @@ void send_msg(int sender, char * recv, char * message)
         temp = temp->next;
     }
     rwlock_release_readlock(&mutex);
-    if (recievr == 0)
+    if (recievr == 0) //failture
     {
-        sprintf(buffer, "Couldnt find client %s \n", recv);
+        sprintf(buffer, "Couldnt find client %s \n", recv); 
         write_to_client((char *)&buffer, sender);
         return;
     }
     printf("connection %s, FD: %d \n", recv, recievr);
-    sprintf(buffer, "%s: %s", recv, message);
+    sprintf(buffer, "MESSAGE RECIEVED: %s: %s", recv, message);
     write_to_client((char *)&buffer, recievr);
 }
 
 int quit_connection(int client)
 {
     close(client);
-    removeFD(client);
-    printf("Client Closed With socket %d\n:", client); 
+    removeFD(client); //removing from linkedlist
+    printf("Client Closed With socket %d\n", client); 
     pthread_exit(NULL);
 }
 
 int execute_command(char * command, int client)
 {
-
+    /*
+    takes the command which is either /list, /msg, /quit
+    */
     char * command1 = "/list\n";
     char * command2 = "/msg";
     char * command3 = "/quit";
@@ -229,80 +247,67 @@ int execute_command(char * command, int client)
 
 void * connection(void * ptr)
 {
-    fd_set activefds, readfds;
     Node * client = (Node *) ptr;
-    int client_socket = client->FD;
-    FD_ZERO(&activefds);
-    FD_SET(client_socket, &activefds);
+    int client_socket = client->FD; //the socket to keep checking
     char response[BUF_SIZE];
-    int n, i;
+    int n; //to hold number of characters read
     while (1)
     {
 
-        readfds = activefds;
-        //printf("%d LEN OF FD SET \n", FD_SETSIZE);
-        for(i=0; i < FD_SETSIZE; i++){
-            //printf("%d\n", i);
-            if(FD_ISSET(i, &readfds) && i == client_socket)
+        n = read(client_socket, response, BUF_SIZE-1);   
+
+        if(n <= 0)
+        { //closed or error on socket
+            quit_connection(client_socket);    //close client sockt                
+            return 0;
+        }
+        else
+        { //client sent a message
+
+            response[n] = '\0'; //NULL terminate
+
+            //echo messget to client
+            if (client->name == NULL) //not specified the name yet
             {
-                n = read(client_socket, response, BUF_SIZE-1);   
-
-                if(n <= 0)
-                { //closed or error on socket
-
-                        //close client sockt
-                    quit_connection(client_socket);                    
-                    return 0;
-
-                }
-                else
-                { //client sent a message
-
-                    response[n] = '\0'; //NULL terminate
-
-                    //echo messget to client
-                    if (client->name == NULL)
+                rwlock_acquire_readlock(&mutex);
+                Node * temp = head;
+                while (temp != NULL)
+                {
+                    if (strcmp(temp->name, response) == 0)
                     {
-                        rwlock_acquire_readlock(&mutex);
-                        Node * temp = head;
-                        while (temp != NULL)
-                        {
-                            if (strcmp(temp->name, response) == 0)
-                            {
-                                //close(client_socket);
-                                //FD_CLR(client_socket, &activefds);
-                                write_to_client("Client already exists with a same name\n", client_socket);
-                                rwlock_release_readlock(&mutex);
-                                quit_connection(client_socket);
-                                return 0;
-                            }
-                            temp = temp->next;
-                        }
+                        write_to_client("ERROR: Client already exists with a same name\n", client_socket);
                         rwlock_release_readlock(&mutex);
-                        client->name = (char * )malloc(strlen(response));
-                        strcpy(client->name, response);
-                        printf("connection: %s, FD: %d \n", client->name, client->FD);
-                        add(client); 
+                        quit_connection(client_socket);
+                        return 0;
                     }
-                    else
-                    {
-                        int status = execute_command((char *)&response, client_socket);
-                        if (status == 0)
-                        {
-                            printf("Recieved from client: %s", response);
-                            write_to_client((char *)&response, client_socket);
-                        }
-                    }
-                }   
-            } 
+                    temp = temp->next;
+                }
+                rwlock_release_readlock(&mutex);
+                client->name = (char * )malloc(strlen(response)); 
+                strcpy(client->name, response); //store the clients name in the node.
+                printf("connection: %s, FD: %d \n", client->name, client->FD);
+                add(client); //adding to the linkedlist
+            }
+            else
+            {
+                //the client sent a command
+                printf("Client %s, sent a command %s", client->name, response);
+                int status = execute_command((char *)&response, client_socket);
+                if (status == 0)
+                {
+                    char buffer[BUF_SIZE];
+                    memset(buffer, 0, BUF_SIZE);
+                    sprintf(buffer, "ERROR: THE SERVER DOES NOT UNDERSTAND %s \n", response);
+                    printf("Recieved from client: %s", response);
+                    write_to_client((char *)&buffer, client_socket);
+                }
+            }
         }         
     }
-    printf("Ending");
 }
 
 int main(int argc, char * argv[]){
 
-    fd_set activefds, readfds;
     char hostname[]="127.0.0.1";   //localhost ip address to bind to
     if (argc == 1)
     {
@@ -318,7 +323,6 @@ int main(int argc, char * argv[]){
 
     int server_sock, client_sock;         //socket file descriptor
     char response[BUF_SIZE];           //what to send to the client
-    int n, i;                             //length measure
 
     rwlock_init(&mutex);
     //set up the address information
@@ -345,48 +349,30 @@ int main(int argc, char * argv[]){
 
     saddr_len = sizeof(struct sockaddr_in); //length of address
     printf("Listening On: %s:%d\n", inet_ntoa(saddr_in.sin_addr), ntohs(saddr_in.sin_port));
-    FD_ZERO(&activefds);
-    FD_SET(server_sock, &activefds);
 
     while(1){ //loop
         //update the set of selectable file descriptors
-        readfds = activefds;
-
-        //Perform a select
-        if( select(FD_SETSIZE, &readfds, NULL, NULL, NULL) < 0){
-        perror("select");
-        exit(1);
+        //accept incoming connections = NON BLOCKING
+        client_sock = accept(server_sock, (struct sockaddr *) &client_saddr_in, &saddr_len); //establishing connection
+        if (client_sock < 0) //failure
+        {
+            printf("Error Connection\n");
+            continue;
         }
 
-        //check for activity on all file descriptors
-        int i;
-        for(i=0; i < FD_SETSIZE; i++){
-
-        //was the file descriptor i set?
-            if(FD_ISSET(i, &readfds) && i == server_sock)
-            {
-                //accept incoming connections = NON BLOCKING
-                client_sock = accept(server_sock, (struct sockaddr *) &client_saddr_in, &saddr_len); //establishing connection
-                if (client_sock < 0) //failure
-                {
-                    printf("Error Connection\n");
-                    continue;
-                }
-
-                printf("Connection From: %s:%d (%d)\n", inet_ntoa(client_saddr_in.sin_addr), 
-                        ntohs(client_saddr_in.sin_port), client_sock);
-                
-                Node * new_connection = (Node *) malloc(sizeof(Node));
-                new_connection->FD = client_sock;
-                new_connection->port = client_saddr_in.sin_port;
-                new_connection->name = NULL;
-                if (pthread_create(&thread, NULL, connection, new_connection) != 0)//creating a new thread
-                {
-                    free(new_connection);
-                }
-
-            }
+        printf("Connection From: %s:%d (%d)\n", inet_ntoa(client_saddr_in.sin_addr), 
+                ntohs(client_saddr_in.sin_port), client_sock);
+        
+        Node * new_connection = (Node *) malloc(sizeof(Node));
+        new_connection->FD = client_sock;
+        new_connection->port = client_saddr_in.sin_port;
+        new_connection->name = NULL;
+        if (pthread_create(&thread, NULL, connection, new_connection) != 0)//creating a new thread
+        {
+            printf("The server could not accomodate this connection\n");
+            free(new_connection);
         }
+
     }
 
 }

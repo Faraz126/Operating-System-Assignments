@@ -17,6 +17,7 @@
 #include <assert.h>
 #define BUF_SIZE 4096
 
+int clients[10] = {0,1,2,3,4,5,6,7,8,9};
 
 void * input(void * ptr)
 {
@@ -26,12 +27,31 @@ void * input(void * ptr)
 
     int sock = *((int *) ptr);
     char *buffer;
-    size_t bufsize = 32;
+    size_t bufsize = 256;
     buffer = (char *)malloc(bufsize * sizeof(char));
-
+    strcat(buffer, "/msg ");
+    int i;
     while(1)
     {
+
         //send the request
+        for (i = 0; i < 10; i++)
+        {
+            strcat(buffer, "/msg ");
+            char integer[64];
+            sprintf(integer, "%d hello\n", i);
+            strcat(buffer, integer);
+            printf("%s\n", buffer);
+            if(write(sock,buffer,strlen(buffer)) < 0) //sendint to clieng
+            {
+                perror("send");
+            }
+            memset(buffer, 0, 256);
+            sleep(1);
+
+        }
+        
+        /*
         if (getline(&buffer,&bufsize,stdin) != 0)
         {
 
@@ -39,7 +59,8 @@ void * input(void * ptr)
             {
                 perror("send");
             }
-        }   
+        }
+        */  
     }
     free(buffer); 
 }
