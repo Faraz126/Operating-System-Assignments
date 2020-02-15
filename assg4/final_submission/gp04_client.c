@@ -18,6 +18,8 @@
 #define BUF_SIZE 4096
 
 
+int RUNNING;
+
 void * input(void * ptr)
 {
     /*
@@ -29,7 +31,7 @@ void * input(void * ptr)
     size_t bufsize = 32;
     buffer = (char *)malloc(bufsize * sizeof(char));
 
-    while(1)
+    while(RUNNING)
     {
         //send the request
         if (getline(&buffer,&bufsize,stdin) != 0)
@@ -41,12 +43,17 @@ void * input(void * ptr)
             }
         }   
     }
+    printf("Exiting thread\n");
     free(buffer); 
 }
 
 int main(int argc, char * argv[]){
     
-    assert(argc == 4);  //the hostname we are looking up
+    if (argc != 4)
+    {
+        printf("Incorrect format\n");
+        return 0;
+    } 
     char * hostname= argv[1];
     short port= atoi(argv[2]);                 //the port we are connecting on
 
@@ -87,43 +94,40 @@ int main(int argc, char * argv[]){
         perror("connect");
         exit(1);
     }
-    if(write(sock,request,strlen(request)) < 0){
+    if(write(sock,request,strlen(request)) < 0){ //sending name first
             perror("send");
     }
-    pthread_create(&thread, NULL, input, &sock);
-
-    fd_set activefds, readfds;
-    FD_ZERO(&activefds);
-    FD_SET(sock, &activefds);
-    while (1)
+    n  = -1;
+    while (n < 0) //waiting for the client to read the name 
     {
-        readfds = activefds;
+        n = read(sock, response, BUF_SIZE-1);
+    }
+    // read(sock, smth)
+    pthread_create(&thread, NULL, input, &sock); //creating thread that takes input and sends it to server
+    RUNNING = 1;
+
+    while (RUNNING) //to keep reading from server
+    {
 
         memset(response, 0, BUF_SIZE);
-        for(i=0; i < FD_SETSIZE; i++)
-        {
-            //printf("%d\n", i);
-            if(FD_ISSET(i, &readfds) && i == sock)
-            {
-                response[0] = '\n';
-                n = read(sock, response, BUF_SIZE-1);   
+        response[0] = '\n';
+        n = read(sock, response, BUF_SIZE-1);   
 
-                if(n <= 0)
-                { //closed or error on socket
+        if(n <= 0)
+        { //closed or error on socket
+                  
+            printf("Client Closed With socket %d\n:", sock);
+            RUNNING = 0;
+            return 0;
 
-                    //remove file descriptor from set
-                    FD_CLR(sock, &activefds);                    
-                    printf("Client Closed With socket %d\n:", sock); 
-                    return 0;
-
-                }
-                else
-                { //client sent a message
-                    printf("%s", response);
-                }
-            }
-        
         }
+        else
+        { //server sent a message
+            printf("%s", response);
+        }
+            
+        
+        
     }
     
 }

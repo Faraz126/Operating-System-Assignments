@@ -18,6 +18,8 @@
 
 #define BUF_SIZE 4096
 
+
+//code for lock taken from the book.
 struct node {
   int FD;
   char * name;
@@ -77,15 +79,19 @@ void rwlock_release_writelock(rwlock_t *lock) {
 void add(Node * new)
 {
     rwlock_acquire_writelock(&mutex);
+    Node* temp = head;
     if (head == NULL)
     {
         head = new;
+        new->next = NULL;
     }
     else
     {
-        head -> next = new;
+        new->next = temp;
+        new->next->next = temp->next;
+        head = new;
     }
-    new->next = NULL;
+    
     rwlock_release_writelock(&mutex);
 }
 
@@ -153,7 +159,6 @@ void list_connections(int client)
     /*
     lists all the connections and send it back to the user
     */
-    printf("request to print");
     char buffer[BUF_SIZE];
     memset(buffer, 0, BUF_SIZE);
     rwlock_acquire_readlock(&mutex);
@@ -166,7 +171,6 @@ void list_connections(int client)
         temp = temp->next;
     }
     rwlock_release_readlock(&mutex);
-    printf("ending request to print");
     write_to_client((char *)&buffer, client);
     return;
 
@@ -182,12 +186,11 @@ void send_msg(int sender, char * recv, char * message)
     memset(buffer, 0, BUF_SIZE);
     rwlock_acquire_readlock(&mutex);
     Node * temp = head;
-    while (temp != NULL)
+    while (temp != NULL) //extracting the socket from the client name.
     {
-        if (strcmp(temp->name, recv) == 0)
+        if (strcmp(temp->name, recv) == 0) //client with name found.
         {
             recievr = temp->FD;
-            printf("FD found");
         }
         temp = temp->next;
     }
@@ -208,13 +211,14 @@ int quit_connection(int client)
     close(client);
     removeFD(client); //removing from linkedlist
     printf("Client Closed With socket %d\n", client); 
-    pthread_exit(NULL);
+    pthread_exit(NULL); //exiting the thread
 }
 
 int execute_command(char * command, int client)
 {
     /*
-    takes the command which is either /list, /msg, /quit
+    takes the command which is either /list, /msg, /quit,
+    returns 1 if command is structued else return 0.
     */
     char * command1 = "/list\n";
     char * command2 = "/msg";
@@ -273,7 +277,7 @@ void * connection(void * ptr)
                 Node * temp = head;
                 while (temp != NULL)
                 {
-                    if (strcmp(temp->name, response) == 0)
+                    if (strcmp(temp->name, response) == 0) //client was a same name already exists hence we close the conenction
                     {
                         write_to_client("ERROR: Client already exists with a same name\n", client_socket);
                         rwlock_release_readlock(&mutex);
@@ -286,6 +290,7 @@ void * connection(void * ptr)
                 client->name = (char * )malloc(strlen(response)); 
                 strcpy(client->name, response); //store the clients name in the node.
                 printf("connection: %s, FD: %d \n", client->name, client->FD);
+                write_to_client("Accepted", client_socket);
                 add(client); //adding to the linkedlist
             }
             else
@@ -311,7 +316,8 @@ int main(int argc, char * argv[]){
     char hostname[]="127.0.0.1";   //localhost ip address to bind to
     if (argc == 1)
     {
-        printf("Port number not passed");
+        printf("Port number not passed\n");
+        return 0;
     }
     short port=atoi(argv[1]); 
     struct sockaddr_in saddr_in;  //socket interent address of server
@@ -342,7 +348,7 @@ int main(int argc, char * argv[]){
         exit(1);
     }     
 
-    if(listen(server_sock, 5)  < 0){
+    if(listen(server_sock, 15)  < 0){
         perror("listen");
         exit(1);
     }
